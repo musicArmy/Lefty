@@ -21,15 +21,17 @@
     }
 
     .shaka-video-container {
-      position: absolute;
+      position: relative;
       inset: 0;
       width: 100%;
       height: 100%;
+      z-index: 1;
     }
 
     video {
       width: 100%;
       height: 100%;
+      display: block;
       background: #000;
       object-fit: contain;
     }
@@ -75,12 +77,13 @@
       pointer-events: none;
     }
 
+    .shaka-overlays-container,
+    .shaka-controls-container,
     .shaka-spinner-container,
     .shaka-spinner,
-    .shaka-spinner-svg {
-      display: none !important;
-      visibility: hidden !important;
-      opacity: 0 !important;
+    .shaka-spinner-svg,
+    .shaka-play-button {
+      pointer-events: auto;
     }
   </style>
 </head>
@@ -108,7 +111,6 @@
   <div id="status">Player starting...</div>
 
   <script>
-    // Apne authorized streams ke URL aur Clear Key values yahan set karein.
     const streams = [
       {
         name: "HINDI 🇮🇳",
