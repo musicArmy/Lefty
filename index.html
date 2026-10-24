@@ -1,0 +1,324 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FIFA WORLD CUP 2026</title>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.7.11/shaka-player.ui.min.js" crossorigin="anonymous"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.7.11/controls.min.css" crossorigin="anonymous">
+
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html, body {
+      background: #000;
+      height: 100%;
+      width: 100%;
+      overflow: hidden;
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+
+    .shaka-video-container {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    video {
+      width: 100%;
+      height: 100%;
+      background: #000;
+      object-fit: contain;
+    }
+
+    #video-options {
+      position: fixed;
+      top: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      width: max-content;
+      max-width: 100%;
+    }
+
+    #video-options button {
+      padding: 10px 12px;
+      color: #fff;
+      background: #252525;
+      border: 1px solid #666;
+      border-radius: 7px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    #video-options button.active {
+      background: #c90016;
+      border-color: #ff3348;
+    }
+
+    #status {
+      position: fixed;
+      bottom: 65px;
+      left: 0;
+      width: 100%;
+      text-align: center;
+      color: #fff;
+      font-size: 13px;
+      z-index: 15;
+      pointer-events: none;
+    }
+
+    .shaka-spinner-container,
+    .shaka-spinner,
+    .shaka-spinner-svg {
+      display: none !important;
+      visibility: hidden !important;
+      opacity: 0 !important;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="video-options">
+    <button class="active" onclick="selectVideo(0)">Video 1</button>
+    <button onclick="selectVideo(1)">Video 2</button>
+    <button onclick="selectVideo(2)">Video 3</button>
+    <button onclick="refreshVideo()">↻ Refresh</button>
+  </div>
+
+  <div class="shaka-video-container" data-shaka-player>
+    <video
+      playsinline
+      preload="metadata"
+      poster="https://w0.peakpx.com/wallpaper/183/933/HD-wallpaper-fifa-world-cup-26-u-sports-soccer-mexico-canada-football-fifa-world-cup-world-cup-20.jpg">
+    </video>
+  </div>
+
+  <div id="status">Player starting...</div>
+
+  <script>
+    // Apne authorized streams ke URL aur Clear Key values yahan set karein.
+    const streams = [
+      {
+        name: "Video 1",
+        url: "Aman",
+        clearKeys: {
+          "Aman": "aman key"
+        }
+      },
+      {
+        name: "Video 2",
+        url: "Aman",
+        clearKeys: {
+          "Aman": "aman key"
+        }
+      },
+      {
+        name: "Video 3",
+        url: "Aman",
+        clearKeys: {
+          "Aman": "aman key"
+        }
+      }
+    ];
+
+    let player = null;
+    let currentIndex = 0;
+    let isReady = false;
+    let isLoading = false;
+    let loadNumber = 0;
+
+    const statusEl = document.getElementById("status");
+    const videoButtons = Array.from(
+      document.querySelectorAll("#video-options button")
+    ).slice(0, 3);
+
+    function setStatus(message) {
+      statusEl.textContent = message;
+    }
+
+    function setActiveButton(index) {
+      videoButtons.forEach((button, i) => {
+        button.classList.toggle("active", i === index);
+      });
+    }
+
+    async function selectVideo(index) {
+      if (!isReady) {
+        setStatus("Player is not ready yet.");
+        return;
+      }
+
+      currentIndex = index;
+      setActiveButton(index);
+
+      const stream = streams[index];
+
+      // "Aman" is a placeholder, not a real stream URL.
+      if (!stream.url ||
+          stream.url.trim() === "" ||
+          stream.url === "Aman") {
+        setStatus(stream.name + ": URL ki jagah apna stream URL daalein.");
+        return;
+      }
+
+      await loadCurrentStream();
+    }
+
+    async function loadCurrentStream() {
+      if (!isReady || isLoading) {
+        setStatus("Please wait...");
+        return;
+      }
+
+      const stream = streams[currentIndex];
+      const thisLoad = ++loadNumber;
+
+      isLoading = true;
+      setStatus(stream.name + " loading...");
+
+      try {
+        await player.unload();
+
+        // Only pass valid hexadecimal Clear Key pairs to Shaka.
+        // For Clear Key, the Key ID and Key are normally 32 hex characters.
+        const configuredKeys = {};
+        const sourceKeys = stream.clearKeys || {};
+
+        for (const [keyId, key] of Object.entries(sourceKeys)) {
+          const validKeyId = /^[0-9a-f]{32}$/i.test(keyId);
+          const validKey = /^[0-9a-f]{32}$/i.test(key);
+
+          if (validKeyId && validKey) {
+            configuredKeys[keyId] = key;
+          }
+        }
+
+        player.configure({
+          drm: {
+            clearKeys: configuredKeys
+          },
+          streaming: {
+            lowLatencyMode: true,
+            bufferingGoal: 15,
+            rebufferingGoal: 2,
+            bufferBehind: 15,
+            retryParameters: {
+              timeout: 10000,
+              maxAttempts: 5,
+              baseDelay: 300,
+              backoffFactor: 1.2
+            },
+            segmentRequestTimeout: 8000,
+            segmentPrefetchLimit: 2,
+            useNativeHlsOnSafari: true
+          },
+          manifest: {
+            retryParameters: {
+              timeout: 8000,
+              maxAttempts: 3
+            }
+          }
+        });
+
+        if (thisLoad !== loadNumber) return;
+
+        await player.load(stream.url);
+
+        if (thisLoad !== loadNumber) return;
+
+        setStatus(stream.name + " loaded successfully");
+
+        try {
+          await document.querySelector("video").play();
+        } catch (_) {
+          setStatus(stream.name + " ready — Play button dabayein.");
+        }
+      } catch (error) {
+        console.error("Shaka Player Error:", error);
+        setStatus("Stream load nahi hui. URL, network ya DRM settings check karein.");
+      } finally {
+        isLoading = false;
+      }
+    }
+
+    async function refreshVideo() {
+      if (!isReady) {
+        setStatus("Player starting...");
+        return;
+      }
+
+      // Reload the currently selected video.
+      if (isLoading) {
+        setStatus("Stream pehle se load ho rahi hai. Thoda wait karein.");
+        return;
+      }
+
+      await loadCurrentStream();
+    }
+
+    document.addEventListener("DOMContentLoaded", async () => {
+      shaka.polyfill.installAll();
+
+      if (!shaka.Player.isBrowserSupported()) {
+        setStatus("This browser does not support Shaka Player.");
+        return;
+      }
+
+      const video = document.querySelector("video");
+      const container = document.querySelector(".shaka-video-container");
+
+      try {
+        player = new shaka.Player();
+        await player.attach(video);
+
+        const ui = new shaka.ui.Overlay(player, container, video);
+
+        ui.configure({
+          controlPanelElements: [
+            "play_pause",
+            "time_and_duration",
+            "mute",
+            "volume",
+            "spacer",
+            "language",
+            "captions",
+            "picture_in_picture",
+            "quality",
+            "fullscreen"
+          ],
+          volumeBarColors: {
+            base: "rgba(0, 136, 255, 0.3)",
+            level: "rgb(0, 136, 255)"
+          },
+          seekBarColors: {
+            base: "rgba(90, 0, 0, 0.3)",
+            buffered: "rgba(120, 0, 0, 0.6)",
+            played: "rgb(170, 0, 0)"
+          }
+        });
+
+        player.addEventListener("error", event => {
+          console.error("Shaka Player Error:", event.detail);
+          setStatus("Playback error. URL, network ya stream check karein.");
+        });
+
+        isReady = true;
+        setStatus("Player ready");
+        await selectVideo(0);
+      } catch (error) {
+        console.error("Player initialization error:", error);
+        setStatus("Player initialize nahi hua. Page reload karke dekhein.");
+      }
+    });
+  </script>
+</body>
+  </html>
+    
