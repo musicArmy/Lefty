@@ -95,8 +95,12 @@
 
   <div class="shaka-video-container" data-shaka-player>
     <video
+      id="stream-video"
       playsinline
-      preload="metadata"
+      autoplay
+      muted
+      preload="auto"
+      crossorigin="anonymous"
       poster="https://w0.peakpx.com/wallpaper/183/933/HD-wallpaper-fifa-world-cup-26-u-sports-soccer-mexico-canada-football-fifa-world-cup-world-cup-20.jpg">
     </video>
   </div>
@@ -139,6 +143,7 @@
     const videoButtons = Array.from(
       document.querySelectorAll("#video-options button")
     ).slice(0, 3);
+    const video = document.getElementById("stream-video");
 
     function setStatus(message) {
       statusEl.textContent = message;
@@ -148,6 +153,22 @@
       videoButtons.forEach((button, i) => {
         button.classList.toggle("active", i === index);
       });
+    }
+
+    function getValidClearKeys(stream) {
+      const configuredKeys = {};
+      const sourceKeys = stream.clearKeys || {};
+
+      for (const [keyId, key] of Object.entries(sourceKeys)) {
+        const validKeyId = /^[0-9a-f]{32}$/i.test(keyId);
+        const validKey = /^[0-9a-f]{32}$/i.test(key);
+
+        if (validKeyId && validKey) {
+          configuredKeys[keyId] = key;
+        }
+      }
+
+      return configuredKeys;
     }
 
     async function selectVideo(index) {
@@ -161,10 +182,7 @@
 
       const stream = streams[index];
 
-      // "Aman" is a placeholder, not a real stream URL.
-      if (!stream.url ||
-          stream.url.trim() === "" ||
-          stream.url === "Aman") {
+      if (!stream.url || stream.url.trim() === "" || stream.url === "Aman") {
         setStatus(stream.name + ": URL ki jagah apna stream URL daalein.");
         return;
       }
@@ -174,7 +192,11 @@
 
     async function loadCurrentStream() {
       if (!isReady || isLoading) {
-        setStatus("Please wait...");
+        if (isLoading) {
+          setStatus("Stream pehle se load ho rahi hai. Thoda wait karein.");
+        } else {
+          setStatus("Please wait...");
+        }
         return;
       }
 
@@ -187,24 +209,11 @@
       try {
         await player.unload();
 
-        // Only pass valid hexadecimal Clear Key pairs to Shaka.
-        // For Clear Key, the Key ID and Key are normally 32 hex characters.
-        const configuredKeys = {};
-        const sourceKeys = stream.clearKeys || {};
-
-        for (const [keyId, key] of Object.entries(sourceKeys)) {
-          const validKeyId = /^[0-9a-f]{32}$/i.test(keyId);
-          const validKey = /^[0-9a-f]{32}$/i.test(key);
-
-          if (validKeyId && validKey) {
-            configuredKeys[keyId] = key;
-          }
-        }
+        const configuredKeys = getValidClearKeys(stream);
+        const drmConfig = Object.keys(configuredKeys).length ? { clearKeys: configuredKeys } : {};
 
         player.configure({
-          drm: {
-            clearKeys: configuredKeys
-          },
+          drm: drmConfig,
           streaming: {
             lowLatencyMode: true,
             bufferingGoal: 15,
@@ -237,7 +246,9 @@
         setStatus(stream.name + " loaded successfully");
 
         try {
-          await document.querySelector("video").play();
+          video.muted = true;
+          await video.play();
+          setStatus(stream.name + " playing");
         } catch (_) {
           setStatus(stream.name + " ready — Play button dabayein.");
         }
@@ -255,7 +266,6 @@
         return;
       }
 
-      // Reload the currently selected video.
       if (isLoading) {
         setStatus("Stream pehle se load ho rahi hai. Thoda wait karein.");
         return;
@@ -272,7 +282,6 @@
         return;
       }
 
-      const video = document.querySelector("video");
       const container = document.querySelector(".shaka-video-container");
 
       try {
@@ -305,6 +314,14 @@
           }
         });
 
+        video.addEventListener("playing", () => {
+          setStatus(streams[currentIndex].name + " playing");
+        });
+
+        video.addEventListener("waiting", () => {
+          setStatus(streams[currentIndex].name + " buffering...");
+        });
+
         player.addEventListener("error", event => {
           console.error("Shaka Player Error:", event.detail);
           setStatus("Playback error. URL, network ya stream check karein.");
@@ -320,5 +337,4 @@
     });
   </script>
 </body>
-  </html>
-    
+</html>
